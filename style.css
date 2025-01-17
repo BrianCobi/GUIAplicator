@@ -1,0 +1,17 @@
+#my_button_normal {
+    background-color: #ffffff; 
+    border: none; 
+}
+
+#my_button_active {
+    background-color: #494949; 
+    color: #ffffff;
+    border: none; 
+}
+#Running {
+    color: green;
+}
+
+#Stopped {
+    color: red;
+}
