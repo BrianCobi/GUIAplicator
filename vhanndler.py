@@ -36,28 +36,30 @@ current_values = [1400, 0, 0, 0, 0, 300, 0, 0]
 value_names = ["Speed", "Offset", "Calibration", "Feed", "Stop", "Count", "Paperlow", "Head"]
 
 def format_current_values():
-    return f"[{current_values[0]}|{current_values[1]}|{current_values[2]}|{current_values[3]}|{current_values[4]}]"
+    return f"[{current_values[0]}|{current_values[1]}|{current_values[2]}|{current_values[3]}|{current_values[4]}|{current_values[5]}]"
 
 def receive_messages():
     while True:
         try:
             message, addr = udp_socket.recvfrom(1024)
-            logger.debug(f"Received message from {addr}: {message.decode()}")
+            logger.info ("Received message from Applicator")
+            # logger.debug(f"Received message from {addr}: {message.decode()}")
             new_values = parse_message(message.decode())
             if new_values:
                 update_current_values(new_values)
                 # ConnectionLabel.set_text("Connected")
         except Exception as e:
-            
+
             logger.error(f"Error receiving message: {e}")
             # ConnectionLabel.set_text("Conneciton Down")
             break
 
 def send_messages(message):
     try:
+        print("Sending valuees:  "+message)
         udp_socket.sendto(message.encode(), (IP_ADDRESS_CLIENT, PORT))
-
-        logger.debug(f"Sent message to {IP_ADDRESS_CLIENT}: {message}")
+        logger.info ("Message sent to applicator")
+        # logger.debug(f"Sent message to {IP_ADDRESS_CLIENT}: {message}")
     except Exception as e:
         logger.error(f"Error sending message: {e}")
 
@@ -65,7 +67,7 @@ def parse_message(message):
     try:
         values = message.strip('[]').split('|')
         if len(values) == 8:
-            logger.debug(f"Parsed message: {values}")
+            # logger.debug(f"Parsed message: {values}")
             return [int(value) for value in values]
         else:
             logger.warning("Received message with incorrect format.")
@@ -78,11 +80,12 @@ def update_current_values(new_values):
     global current_values
     for i in range(len(current_values)):
         if current_values[i] != new_values[i]:
-            logger.debug(f"Updating {value_names[i]} from {current_values[i]} to {new_values[i]}")
+            logger.info("Updating Data")
+            # logger.debug(f"Updating {value_names[i]} from {current_values[i]} to {new_values[i]}")
             if value_names[i] == "Head" and new_values[i] == 1:
-                logger.debug("Head open!")
+                logger.info("Head open!")
             if value_names[i] == "Paperlow" and new_values[i] == 1:
-                logger.debug("Paper low!")
+                logger.info("Paper low!")
             current_values[i] = new_values[i]
             update_gui()
 
@@ -101,7 +104,12 @@ def _update_gui():
         calibration_button.set_name("my_button_normal" if current_values[2] == 0 else "my_button_active")
         feed_button.set_name("my_button_normal" if current_values[3] == 0 else "my_button_active")
         headOpenWIndow.show() if current_values[7] == 1 else headOpenWIndow.hide()
+
+
         PaperLowWIndow.show() if current_values[6] == 1 else PaperLowWIndow.hide()
+        StateLabel.set_text("Running" if current_values[6] == 1 else "Stopped")
+
+
         StateLabel.set_text("Running" if current_values[4] == 0 else "Stopped")
         Spinner.start() if current_values[4] == 0 else Spinner.stop()
         StateLabel.set_name("Running" if current_values[4] == 0 else "Stopped")
@@ -138,7 +146,7 @@ def ping(host):
 class MainWindow:
     def __init__(self):
         self.builder = Gtk.Builder()
-        self.builder.add_from_file('vhandler1.ui')
+        self.builder.add_from_file('GuiFunctionalVhandler.ui')
         self.builder.connect_signals(self)
 
         global headOpenWIndow, PaperLowWIndow, TextViewWindow, AdminWindow
@@ -153,12 +161,13 @@ class MainWindow:
         style_context = Gtk.StyleContext()
         style_context.add_provider_for_screen(screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-        global stop_label, start_button, calibration_button, feed_button, textview
+        global stop_label, start_button, calibration_button, feed_button, textview, Resetbtn
         stop_label = self.builder.get_object("btnstop")
         start_button = self.builder.get_object("btnstart")
         calibration_button = self.builder.get_object("btn_calibrate")
         feed_button = self.builder.get_object("btnman")
         textview = self.builder.get_object('LogText')
+        Resetbtn = self.builder.get_object('ResetBtn')
 
         global speed_label, offset_label, count_label, ConnectionLabel, StateLabel, Spinner, btnAdminCancel, bntAccept, AdminEntry, AlertLabel, AdminMode
         speed_label = self.builder.get_object("lblspeed")
@@ -174,9 +183,16 @@ class MainWindow:
         AdminEntry = self.builder.get_object("AdminEntry")
         AlertLabel = self.builder.get_object('AlertLabel')
         AdminMode = self.builder.get_object('AdminMode')
+        GLib.idle_add(self.after_initialization)
         # AdminWindow.present()
         # AdminEntry.present()
         # AdminEntry.set_visibility(False)
+
+    def after_initialization(self):
+        logger.info("Application fully initialized.")
+        self._set_value("Stop", 1)
+        return False
+
 
     def on_window_destroy(self, widget, data=None):
         Gtk.main_quit()
@@ -187,6 +203,9 @@ class MainWindow:
 
     def on_offsetmin_clicked(self, widget, data=None):
         self._change_value("Offset", -10)
+
+    def on_ResetBtn_clicked(self, widget, data=None):
+        self._set_value("Count", 0)
 
     def on_speedplus_clicked(self, widget, data=None):
         self._change_value("Speed", 100)
@@ -205,6 +224,8 @@ class MainWindow:
 
     def on_btn_calibrate_clicked(self, widget, data=None):
         self._toggle_value("Calibration")
+
+
 
     def on_view_clicked(self, widget, data=None):
         logger.info("Log button clicked")
@@ -258,7 +279,7 @@ class MainWindow:
                 elif terminal == "lxterminal":
                     subprocess.run([terminal, "-e", f"bash -c \"{command}\""])
                 else:
-                    subprocess.run([terminal, "-e", command]) 
+                    subprocess.run([terminal, "-e", command])
                 logger.info("Admin window closed")
                 AdminEntry.set_text("")
                 AdminWindow.hide()
@@ -299,7 +320,7 @@ def get_default_terminal():
     terminals = ["gnome-terminal", "konsole", "xfce4-terminal", "x-terminal-emulator", "lxterminal", "tilix", "mate-terminal", "terminator", "urxvt"]
     for terminal in terminals:
         path = shutil.which(terminal)
-        if path:  
+        if path:
             return terminal
     return None
 
